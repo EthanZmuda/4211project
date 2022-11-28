@@ -3,17 +3,20 @@ CC     = g++ $(CFLAGS)
 
 all : server client
 
-server.o : server.cpp server.h
+connection.o : connection.cpp connection.h payload.h
 	$(CC) -c $<
 
-client.o : client.cpp client.h
+server.o : server.cpp server.h payload.h
 	$(CC) -c $<
 
-server : server.o
+client.o : client.cpp client.h payload.h
+	$(CC) -c $<
+
+server : server.o connection.o
 	$(CC) -o $@ $^
 
 client : client.o
-	$(CC) -pthread -o $@ $^
+	$(CC) -o $@ $^
 
 clean:
 	rm -rf *.o server client
