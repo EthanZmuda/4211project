@@ -13,10 +13,10 @@ client.o : client.cpp client.h payload.h
 	$(CC) -c $<
 
 server : server.o connection.o
-	$(CC) -o $@ $^
+	$(CC) -pthread -o $@ $^
 
 client : client.o
-	$(CC) -o $@ $^
+	$(CC) -pthread -o $@ $^
 
 clean:
 	rm -rf *.o server client
