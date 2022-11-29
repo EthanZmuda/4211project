@@ -3,8 +3,8 @@
 
 Client* client;
 int connected = 0;
-int disconnected = 0; // set to 1 when client disconnects
-int cleanup = 0; // set to 1 when client disconnects and all threads have exited
+int disconnected = 0;   // set to 1 when client disconnects
+int cleanup = 0;        // set to 1 when client disconnects and all threads have exited
 
 // function to handle SIGINT and SIGTERM
 void sig_handler(int s) {
@@ -16,7 +16,7 @@ void sig_handler(int s) {
 // function to handle connecting to server on a certain port
 int Client::connect_to_server(const char* hostname, const char* port) {
     struct addrinfo* server_addr;
-    if (getaddrinfo(hostname, port, NULL, &server_addr)) { // get address info for server
+    if (getaddrinfo(hostname, port, NULL, &server_addr)) {  // get address info for server
         freeaddrinfo(server_addr);
         printf("failed to get addrinfo\n");
         return 1;
@@ -213,8 +213,8 @@ void Client::listen_loop(Client* client) {
 
             client->send_to_server(&payload); // send a DISC_ACK packet to the server
 
-            disconnected = 1; // set the disconnected flag to true
-            cleanup = 1; // set the cleanup flag to true
+            disconnected = 1;   // set the disconnected flag to true
+            cleanup = 1;        // set the cleanup flag to true
             break;
         }
         else if (strncmp(payload.req, "CONN_ACK", REQ_SIZE) == 0) { // if the packet is a CONN_ACK packet, print a message and set the connected flag to true
@@ -238,13 +238,12 @@ Client::~Client() {
 }
 
 int main(int argc, char* argv[]) {
-
-    const char* hostname = "76.17.252.142"; // default hostname (my IP, please don't ddos)
-    const char* port = "42069"; // default port
-    if(argc >= 3){ // if the user specified a hostname and port, use those
-        hostname = argv[1];
-        port = argv[2];
+    if(argc < 3){
+        printf("Correct usage:\n./client <hostname> <port>\n");
+		return 1;
     }
+    const char* hostname = argv[1];
+    const char* port = argv[2];
 
     // set up signal handelling for SIGINT and SIGTERM
     struct sigaction my_sa = {};
