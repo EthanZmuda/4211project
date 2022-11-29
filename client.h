@@ -22,17 +22,18 @@
 
 int main(int argc, char* argv[]);
 
+// Client class
 class Client {
     private:
-        int server_fd;
+        int sock_fd;
         std::thread* listen_thread;
         static void listen_loop(Client* client);
     public:
         int connect_to_server(const char* hostname, const char* port);
         int disconnect_from_server();
         int process_string(const char* str);
-        inline int send_to_server(payload_t* payload) { return write(server_fd, payload, PACKET_SIZE); }
-        int get_server_fd() { return server_fd; }
+        inline int send_to_server(payload_t* payload) { return write(sock_fd, payload, PACKET_SIZE); }
+        int get_server_fd() { return sock_fd; }
         Client();
         ~Client();
 };

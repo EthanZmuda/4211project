@@ -24,6 +24,7 @@
 
 class Server;
 
+// Connection class
 class Connection {
     private:
         int client_fd;
@@ -40,6 +41,7 @@ class Connection {
         int disconnect_client();
         int add_topic(char* topic);
         int remove_topic(char* topic);
+        int list_topics();
         inline int send_to_client(payload_t* payload) { return write(client_fd, payload, PACKET_SIZE); }
         int get_client_fd() { return client_fd; }
         int get_cleanup() { return cleanup; }
