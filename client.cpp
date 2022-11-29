@@ -70,7 +70,7 @@ int Client::connect_to_server(const char* hostname, const char* port) {
 
     int tries = 0;
     while (!connected) {
-        if (tries >= 10) {
+        if (tries < 0) {
             printf("Did not receive CONN_ACK, failed to connect to server\n");
             cleanup = 1;
             return 1;
@@ -104,7 +104,7 @@ int Client::disconnect_from_server() {
 int Client::process_string(const char* str) {
     char* str2 = strdup(str);
     char* token = strtok((char*) str2, " ");
-    if (strncmp(token, "PUB", 4) == 0) {
+    if (strncmp(token, "PUB", strnlen(token, REQ_SIZE)) == 0) {
         token = strtok(NULL, " ");
         if (!token) {
             printf("Invalid PUB request\n");
@@ -117,7 +117,20 @@ int Client::process_string(const char* str) {
         snprintf(payload.msg, MSG_SIZE, "%s", str+5+strnlen(token, TOPIC_SIZE));
         send_to_server(&payload);
     }
-    else if (strncmp(token, "SUB", 4) == 0) {
+    else if (strncmp(token, "PUBRET", strnlen(token, REQ_SIZE)) == 0) {
+        token = strtok(NULL, " ");
+        if (!token) {
+            printf("Invalid PUB request\n");
+            free(str2);
+            return 1;
+        }
+        payload_t payload = {0};
+        snprintf(payload.req, REQ_SIZE, "PUBRET");
+        snprintf(payload.topic, TOPIC_SIZE, "%s", token);
+        snprintf(payload.msg, MSG_SIZE, "%s", str+8+strnlen(token, TOPIC_SIZE));
+        send_to_server(&payload);
+    }
+    else if (strncmp(token, "SUB", strnlen(token, REQ_SIZE)) == 0) {
         token = strtok(NULL, " ");
         if (!token) {
             printf("Invalid SUB request\n");
@@ -128,13 +141,33 @@ int Client::process_string(const char* str) {
         snprintf(payload.req, REQ_SIZE, "SUB");
         snprintf(payload.topic, TOPIC_SIZE, "%s", token);
         send_to_server(&payload);
-    } 
+    }
+    else if (strncmp(token, "UNSUB", strnlen(token, REQ_SIZE)) == 0) {
+        token = strtok(NULL, " ");
+        if (!token) {
+            printf("Invalid UNSUB request\n");
+            free(str2);
+            return 1;
+        }
+        payload_t payload = {0};
+        snprintf(payload.req, REQ_SIZE, "UNSUB");
+        snprintf(payload.topic, TOPIC_SIZE, "%s", token);
+        send_to_server(&payload);
+    }
+    else if (strncmp(token, "UNSUB", strnlen(token, REQ_SIZE)) == 0) {
+        token = strtok(NULL, " ");
+        if (!token) {
+            printf("Invalid UNSUB request\n");
+            free(str2);
+            return 1;
+        }
+        payload_t payload = {0};
+        snprintf(payload.req, REQ_SIZE, "UNSUB");
+        snprintf(payload.topic, TOPIC_SIZE, "%s", token);
+        send_to_server(&payload);
+    }
     free(str2);
     return 0;
-}
-
-int Client::send_to_server(payload_t* payload) {
-    return write(server_fd, payload, PACKET_SIZE);
 }
 
 void Client::listen_loop(Client* client) {
@@ -145,7 +178,7 @@ void Client::listen_loop(Client* client) {
 
         if (nread != PACKET_SIZE) continue;
 
-        if (strncmp(payload.req, "PUB", REQ_SIZE) == 0) {
+        if (strncmp(payload.req, "PUB", REQ_SIZE) == 0 || strncmp(payload.req, "PUBRET", REQ_SIZE) == 0) {
             printf("%s: %s\n", payload.topic, payload.msg);
         }
         else if (strncmp(payload.req, "DISC", REQ_SIZE) == 0) {

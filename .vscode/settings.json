@@ -38,6 +38,8 @@
         "condition_variable": "cpp",
         "map": "cpp",
         "mutex": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "istream": "cpp",
+        "vector": "cpp"
     }
 }

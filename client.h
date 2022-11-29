@@ -31,7 +31,7 @@ class Client {
         int connect_to_server(const char* hostname, const char* port);
         int disconnect_from_server();
         int process_string(const char* str);
-        inline int send_to_server(payload_t* payload);
+        inline int send_to_server(payload_t* payload) { return write(server_fd, payload, PACKET_SIZE); }
         int get_server_fd() { return server_fd; }
         Client();
         ~Client();

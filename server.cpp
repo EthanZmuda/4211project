@@ -43,67 +43,91 @@ int Server::create_connection(int client_fd) {
 	return 0;
 }
 
-int Server::publish_message(payload_t* payload) {
-	if (strncmp(payload->topic, "WEATHER", TOPIC_SIZE) == 0) {
-		printf("Publishing to WEATHER topic for %ld client", weather->size());
-		if (weather->size() != 1) printf("s");
-		printf("\n");
+int Server::publish_message(payload_t* payload, int retain) {
+	poll_topics(std::string(payload->topic));
 
-		for (Connection* connection : *weather) {
-			connection->send_to_client(payload);
-		}
-	}
-	else if (strncmp(payload->topic, "NEWS", TOPIC_SIZE) == 0) {
-		printf("Publishing to NEWS topic for %ld client", news->size());
-		if (news->size() != 1) printf("s");
-		printf("\n");
+	unsigned long size = topics->at(std::string(payload->topic))->connections->size();
+	printf("Publishing to %s topic for %ld client", payload->topic, size);
+	if (size != 1) printf("s");
+	printf("\n");
 
-		for (Connection* connection : *news) {
-			connection->send_to_client(payload);
-		}
+	for (auto it2 : *(topics->at(std::string(payload->topic))->connections)) {
+		it2->send_to_client(payload);
 	}
-	else if (strncmp(payload->topic, "HEALTH", TOPIC_SIZE) == 0) {
-		printf("Publishing to HEALTH topic for %ld client", health->size());
-		if (health->size() != 1) printf("s");
-		printf("\n");
 
-		for (Connection* connection : *health) {
-			connection->send_to_client(payload);
-		}
+	if (retain) {
+		printf("Retaining message for topic %s\n", payload->topic);
+		char** cur_retain = &topics->at(std::string(payload->topic))->retain;
+		if (*cur_retain) free(*cur_retain);
+		*cur_retain = strdup(payload->msg);
 	}
-	else if (strncmp(payload->topic, "SECURITY", TOPIC_SIZE) == 0) {
-		printf("Publishing to SECURITY topic for %ld client", security->size());
-		if (security->size() != 1) printf("s");
-		printf("\n");
 
-		for (Connection* connection : *security) {
-			connection->send_to_client(payload);
-		}
-	}
-	else {
-		printf("Invalid topic\n");
-		return 1;
-	}
 	return 0;
 }
 
 int Server::subscribe_to_topic(int client_fd, char* topic) {
-	if (strncmp(topic, "WEATHER", TOPIC_SIZE) == 0) {
-		weather->push_back(connections->at(client_fd));
-	}
-	else if (strncmp(topic, "NEWS", TOPIC_SIZE) == 0) {
-		news->push_back(connections->at(client_fd));
-	}
-	else if (strncmp(topic, "HEALTH", TOPIC_SIZE) == 0) {
-		health->push_back(connections->at(client_fd));
-	}
-	else if (strncmp(topic, "SECURITY", TOPIC_SIZE) == 0) {
-		security->push_back(connections->at(client_fd));
-	}
-	else {
-		printf("Invalid topic\n");
+	if (connections->at(client_fd)->add_topic(topic)) {
+        printf("Client %d already subscribed to topic %s\n", client_fd, topic);
 		return 1;
 	}
+
+	printf("Subscribing client %d to topic %s\n", client_fd, topic);
+
+	std::string topic_str(topic);
+	poll_topics(topic_str);
+	topic_t* topic_struct = topics->at(topic_str);
+	topic_struct->connections->push_back(connections->at(client_fd));
+
+	if (topic_struct->retain) {
+		printf("Sending retained message to client %d for topic %s\n", client_fd, topic);
+		payload_t payload = {0};
+		snprintf(payload.req, REQ_SIZE, "PUBRET");
+		snprintf(payload.topic, TOPIC_SIZE, "%s", topic);
+		snprintf(payload.msg, MSG_SIZE, "%s", topic_struct->retain);
+		connections->at(client_fd)->send_to_client(&payload);
+	}
+
+	return 0;
+}
+
+int Server::unsubscribe_from_topic(int client_fd, char* topic) {
+	if (connections->at(client_fd)->remove_topic(topic)) {
+    	printf("Client %d not subscribed to topic %s\n", client_fd, topic);
+		return 1;
+	}
+	std::string topic_str(topic);
+	topic_t* topic_struct = topics->at(topic_str);
+	
+	for (unsigned long i = 0; i < topic_struct->connections->size(); i++) {
+        if (topic_struct->connections->at(i) == connections->at(client_fd)) {
+            topic_struct->connections->erase(topic_struct->connections->begin() + i);
+        }
+    }
+	return 0;
+}
+
+int Server::poll_topics(std::string topic) {
+	topic_t* topic_struct;
+	if(topics->find(topic) == topics->end()){
+		topic_struct = new topic_t;
+		topic_struct->name = strdup(topic.c_str());
+		topic_struct->connections = new std::vector<Connection*>();
+		topic_struct->subtopics = new std::map<std::string, topic_t*>();
+		(*topics)[topic] = topic_struct;
+
+		printf("Created new topic: %s\n", topic.c_str());
+	}
+	return 0;
+}
+
+int Server::free_topics(std::map<std::string, topic_t*>* topics) {
+	for (auto it = topics->begin(); it != topics->end(); it++) {
+		free_topics(it->second->subtopics);
+		free(it->second->name);
+		delete it->second->connections;
+		delete it->second;
+	}
+	delete topics;
 	return 0;
 }
 
@@ -148,6 +172,8 @@ Server::~Server() {
 		}
 	}
 
+	free_topics(topics);
+
 	delete connections;
 }
 
@@ -191,7 +217,7 @@ int main(int argc, char* argv[]) {
 	server = new Server(server_fd);
 	
 	while(!cleanup) {
-		for (auto it = server->get_connections()->begin(); it != server->get_connections()->end();){
+		for (auto it = server->get_connections()->begin(); it != server->get_connections()->end();) {
 			int fd = it->first;
 			Connection* conn = it->second;
 			if (conn->get_cleanup()) {
@@ -200,7 +226,7 @@ int main(int argc, char* argv[]) {
 				it = server->get_connections()->erase(it);
 				printf("New number of connections: %ld\n", server->get_connections()->size());
 			}
-			else ++it;
+			else it++;
 		}
 	}
 

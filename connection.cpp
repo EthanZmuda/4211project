@@ -23,11 +23,23 @@ int Connection::disconnect_client() {
 }
 
 int Connection::add_topic(char* topic) {
+    for (unsigned long i = 0; i < topics->size(); i++) {
+        if (strncmp(topics->at(i), topic, TOPIC_SIZE) == 0) {
+            return 1;
+        }
+    }
     topics->push_back(strdup(topic));
+    return 0;
 }
 
-int Connection::send_to_client(payload_t* payload) {
-    return write(client_fd, payload, PACKET_SIZE);
+int Connection::remove_topic(char* topic) {
+    for (unsigned long i = 0; i < topics->size(); i++) {
+        if (strncmp(topic, topics->at(i), TOPIC_SIZE) == 0) {
+            topics->erase(topics->begin() + i);
+            return 0;
+        }
+    }
+    return 1;
 }
 
 void Connection::listen_loop(Connection* connection) {
@@ -40,11 +52,19 @@ void Connection::listen_loop(Connection* connection) {
 
         if (strncmp(payload.req, "PUB", REQ_SIZE) == 0) {
             printf("Received PUB from client %d to topic %s, processing\n", connection->get_client_fd(), payload.topic);
-            connection->get_server()->publish_message(&payload);
+            connection->get_server()->publish_message(&payload, 0);
+        }
+        if (strncmp(payload.req, "PUBRET", REQ_SIZE) == 0) {
+            printf("Received PUBRET from client %d to topic %s, processing\n", connection->get_client_fd(), payload.topic);
+            connection->get_server()->publish_message(&payload, 1);
         }
         else if (strncmp(payload.req, "SUB", REQ_SIZE) == 0) {
             printf("Received SUB from client %d to topic %s, processing\n", connection->get_client_fd(), payload.topic);
             connection->get_server()->subscribe_to_topic(connection->get_client_fd(), payload.topic);
+        }
+        else if (strncmp(payload.req, "UNSUB", REQ_SIZE) == 0) {
+            printf("Received UNSUB from client %d to topic %s, processing\n", connection->get_client_fd(), payload.topic);
+            connection->get_server()->unsubscribe_from_topic(connection->get_client_fd(), payload.topic);
         }
         else if (strncmp(payload.req, "DISC", REQ_SIZE) == 0) {
             printf("Received DISC from client %d, sending DISC_ACK\n", connection->get_client_fd());
